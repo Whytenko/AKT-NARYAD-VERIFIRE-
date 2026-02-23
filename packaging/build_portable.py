@@ -46,7 +46,7 @@ def main() -> int:
 
     app_dir = dist_dir / app_name
     if not app_dir.exists():
-        raise RuntimeError(f"Папка сборки не найдена: {app_dir}")
+        raise RuntimeError(f"Build folder not found: {app_dir}")
 
     release_dir.mkdir(parents=True, exist_ok=True)
     os_name = platform.system().lower()
@@ -77,9 +77,9 @@ def main() -> int:
         encoding="utf-8",
     )
 
-    print(f"✅ Portable архив: {zip_path}")
-    print(f"✅ SHA-256: {checksum_path}")
-    print(f"✅ Инструкция: {readme_path}")
+    print(f"Portable archive: {zip_path}")
+    print(f"SHA-256 file: {checksum_path}")
+    print(f"Readme: {readme_path}")
     return 0
 
 

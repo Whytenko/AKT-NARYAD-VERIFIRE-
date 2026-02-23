@@ -29,7 +29,7 @@ def sha256sum(path: Path) -> str:
 
 def main() -> int:
     if sys.platform != "win32":
-        print("Этот скрипт запускается только на Windows.")
+        print("This script can be run only on Windows.")
         return 1
 
     project_root = Path(__file__).resolve().parents[2]
@@ -37,17 +37,17 @@ def main() -> int:
     iss_path = project_root / "packaging" / "windows" / "AKTNaryadVerifier.iss"
 
     if not dist_dir.exists():
-        print(f"Не найдена папка сборки: {dist_dir}")
-        print("Сначала выполните: python packaging/build_portable.py")
+        print(f"Build folder not found: {dist_dir}")
+        print("Run first: python packaging/build_portable.py")
         return 1
 
     if not iss_path.exists():
-        print(f"Не найден файл установщика: {iss_path}")
+        print(f"Installer script not found: {iss_path}")
         return 1
 
     iscc = find_iscc()
     if not iscc:
-        print("ISCC.exe не найден. Установите Inno Setup 6.")
+        print("ISCC.exe not found. Install Inno Setup 6.")
         return 1
 
     cmd = [str(iscc), str(iss_path)]
@@ -59,10 +59,10 @@ def main() -> int:
         checksum = sha256sum(installer)
         checksum_path = release_dir / f"{installer.name}.sha256"
         checksum_path.write_text(f"{checksum}  {installer.name}\n", encoding="utf-8")
-        print(f"✅ Установщик: {installer}")
-        print(f"✅ SHA-256: {checksum_path}")
+        print(f"Installer: {installer}")
+        print(f"SHA-256 file: {checksum_path}")
     else:
-        print("✅ Установщик собран в папке release/")
+        print("Installer built in release folder.")
     return 0
 
 
