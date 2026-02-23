@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+.pytest_cache/
+
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/
+
+# Build artifacts
+build/
+dist/
+release/
+*.spec.bak
+
+# Runtime user data and caches
+ml_cache/
+data/input/
+
+# Local virtual envs
+.venv/
+venv/
+env/
+
+# Large local bundles
+*.zip
+
