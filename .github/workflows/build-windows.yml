@@ -23,6 +23,9 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements-build.txt
 
+      - name: Install Tesseract
+        run: choco install tesseract --no-progress -y
+
       - name: Build portable package
         run: python packaging/build_portable.py
 
@@ -40,3 +43,4 @@ jobs:
             release/*.exe
             release/*.sha256
             release/*.txt
+            packaging/OFFICE_DEPLOY_RU.md

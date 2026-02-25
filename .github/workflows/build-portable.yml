@@ -33,6 +33,10 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements-build.txt
 
+      - name: Install Tesseract (Windows)
+        if: runner.os == 'Windows'
+        run: choco install tesseract --no-progress -y
+
       - name: Build portable package
         run: python packaging/build_portable.py
 

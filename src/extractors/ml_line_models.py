@@ -4,6 +4,8 @@ import argparse
 import json
 import math
 import re
+import os
+import shutil
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -16,6 +18,7 @@ from src.utils.app_paths import (
     get_bundled_ml_data_csv,
     get_input_dir,
     get_ml_models_dir,
+    get_resource_roots,
 )
 
 RAW_CSV_PATH = get_bundled_ml_data_csv()
@@ -93,6 +96,8 @@ class LineExtractor:
             from PIL import ImageOps
         except Exception:
             return ""
+        if not _configure_tesseract(pytesseract):
+            return ""
         try:
             image = page.to_image(resolution=300).original
             gray = ImageOps.grayscale(image)
@@ -100,6 +105,57 @@ class LineExtractor:
             return pytesseract.image_to_string(gray, lang="rus+eng", config="--psm 6")
         except Exception:
             return ""
+
+
+def _configure_tesseract(pytesseract_module) -> bool:
+    try:
+        current_cmd = str(getattr(pytesseract_module.pytesseract, "tesseract_cmd", "")).strip()
+        if current_cmd and Path(current_cmd).exists():
+            cmd_path = Path(current_cmd)
+            for tessdata in (cmd_path.parent / "tessdata", cmd_path.parent.parent / "tessdata"):
+                if tessdata.exists():
+                    os.environ.setdefault("TESSDATA_PREFIX", str(tessdata))
+                    break
+            return True
+    except Exception:
+        pass
+
+    candidates: List[Path] = []
+    try:
+        in_path = shutil.which("tesseract")
+        if in_path:
+            candidates.append(Path(in_path))
+    except Exception:
+        pass
+
+    for root in get_resource_roots():
+        candidates.extend(
+            [
+                root / "tesseract" / "tesseract",
+                root / "tesseract" / "tesseract.exe",
+                root / "tesseract" / "bin" / "tesseract",
+                root / "tesseract" / "bin" / "tesseract.exe",
+            ]
+        )
+
+    seen: set[str] = set()
+    for candidate in candidates:
+        key = str(candidate)
+        if key in seen:
+            continue
+        seen.add(key)
+        if not candidate.exists():
+            continue
+        try:
+            pytesseract_module.pytesseract.tesseract_cmd = str(candidate)
+            for tessdata in (candidate.parent / "tessdata", candidate.parent.parent / "tessdata"):
+                if tessdata.exists():
+                    os.environ.setdefault("TESSDATA_PREFIX", str(tessdata))
+                    break
+            return True
+        except Exception:
+            continue
+    return False
 
 
 def _normalize_text(value: Optional[str]) -> str:

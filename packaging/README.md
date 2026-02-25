@@ -53,5 +53,5 @@ Do **not** rely on cross-compiling Windows from macOS for production artifacts.
 
 ## OCR note
 The app uses Tesseract for OCR.
-- Preferred packaging layout: put binary in `tesseract/bin/tesseract` (or `tesseract/bin/tesseract.exe`) near app files.
-- If not bundled, provide a prerequisite install step for Tesseract.
+- Windows CI builds install Tesseract and bundle it into the installer automatically.
+- Preferred packaging layout for manual builds: put binary in `tesseract/bin/tesseract` (or `tesseract/bin/tesseract.exe`) near app files.

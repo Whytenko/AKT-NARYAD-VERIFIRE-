@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import platform
+import shutil
 import subprocess
 import sys
 import hashlib
+import urllib.request
 from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile
 
@@ -26,12 +28,64 @@ def sha256sum(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _download_traineddata(lang: str, target_file: Path) -> bool:
+    url = f"https://github.com/tesseract-ocr/tessdata_fast/raw/main/{lang}.traineddata"
+    try:
+        target_file.parent.mkdir(parents=True, exist_ok=True)
+        urllib.request.urlretrieve(url, str(target_file))
+        return True
+    except Exception:
+        return False
+
+
+def prepare_tesseract_bundle(project_root: Path) -> None:
+    if platform.system().lower() != "windows":
+        return
+
+    src_candidates = [
+        Path(r"C:\Program Files\Tesseract-OCR"),
+        Path(r"C:\Program Files (x86)\Tesseract-OCR"),
+    ]
+    src_dir = next((p for p in src_candidates if p.exists()), None)
+    if src_dir is None:
+        print("Tesseract source not found in Program Files. OCR bundle skipped.")
+        return
+
+    dst_dir = project_root / "tesseract"
+    if dst_dir.exists():
+        shutil.rmtree(dst_dir, ignore_errors=True)
+    shutil.copytree(src_dir, dst_dir)
+
+    exe_candidates = [
+        dst_dir / "tesseract.exe",
+        dst_dir / "bin" / "tesseract.exe",
+    ]
+    if not any(p.exists() for p in exe_candidates):
+        print("Tesseract executable not found in bundled folder.")
+
+    tessdata_dir = dst_dir / "tessdata"
+    if not tessdata_dir.exists() and (dst_dir / "bin" / "tessdata").exists():
+        tessdata_dir = dst_dir / "bin" / "tessdata"
+
+    for lang in ("eng", "rus"):
+        trained = tessdata_dir / f"{lang}.traineddata"
+        if trained.exists():
+            continue
+        ok = _download_traineddata(lang, trained)
+        if ok:
+            print(f"Downloaded missing tesseract language: {lang}")
+        else:
+            print(f"Failed to download tesseract language: {lang}")
+
+
 def main() -> int:
     project_root = Path(__file__).resolve().parents[1]
     spec_path = project_root / "packaging" / "portable.spec"
     dist_dir = project_root / "dist"
     release_dir = project_root / "release"
     app_name = "AKTNaryadVerifier"
+
+    prepare_tesseract_bundle(project_root)
 
     cmd = [
         sys.executable,

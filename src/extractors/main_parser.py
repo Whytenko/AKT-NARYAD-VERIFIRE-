@@ -1024,31 +1024,65 @@ class FinalUnifiedParser:
         # Deprecated fallback kept for compatibility; require explicit СПО in OCR.
         return ""
 
+    def _configure_tesseract(self, pytesseract_module) -> bool:
+        try:
+            current_cmd = str(getattr(pytesseract_module.pytesseract, "tesseract_cmd", "")).strip()
+            if current_cmd and Path(current_cmd).exists():
+                cmd_path = Path(current_cmd)
+                for tessdata in (cmd_path.parent / "tessdata", cmd_path.parent.parent / "tessdata"):
+                    if tessdata.exists():
+                        os.environ.setdefault("TESSDATA_PREFIX", str(tessdata))
+                        break
+                return True
+        except Exception:
+            pass
+
+        candidates: List[Path] = []
+        try:
+            in_path = shutil.which("tesseract")
+            if in_path:
+                candidates.append(Path(in_path))
+        except Exception:
+            pass
+
+        for root in get_resource_roots():
+            candidates.extend(
+                [
+                    root / "tesseract" / "tesseract",
+                    root / "tesseract" / "tesseract.exe",
+                    root / "tesseract" / "bin" / "tesseract",
+                    root / "tesseract" / "bin" / "tesseract.exe",
+                ]
+            )
+
+        candidates.extend([Path("/opt/homebrew/bin/tesseract"), Path("/usr/local/bin/tesseract")])
+
+        seen: set[str] = set()
+        for candidate in candidates:
+            key = str(candidate)
+            if key in seen:
+                continue
+            seen.add(key)
+            if not candidate.exists():
+                continue
+            try:
+                pytesseract_module.pytesseract.tesseract_cmd = str(candidate)
+                for tessdata in (candidate.parent / "tessdata", candidate.parent.parent / "tessdata"):
+                    if tessdata.exists():
+                        os.environ.setdefault("TESSDATA_PREFIX", str(tessdata))
+                        break
+                return True
+            except Exception:
+                continue
+        return False
+
     def _parse_spo_from_ocr(self, pdf) -> str:
         try:
             import pytesseract
         except Exception:
             return ""
-
-        # Ensure tesseract binary is available (macOS/Homebrew paths)
-        try:
-            if not shutil.which("tesseract"):
-                bundled_candidates = []
-                for root in get_resource_roots():
-                    bundled_candidates.extend(
-                        [
-                            root / "tesseract" / "tesseract",
-                            root / "tesseract" / "tesseract.exe",
-                            root / "tesseract" / "bin" / "tesseract",
-                            root / "tesseract" / "bin" / "tesseract.exe",
-                        ]
-                    )
-                for candidate in [*bundled_candidates, Path("/opt/homebrew/bin/tesseract"), Path("/usr/local/bin/tesseract")]:
-                    if Path(candidate).exists():
-                        pytesseract.pytesseract.tesseract_cmd = str(candidate)
-                        break
-        except Exception:
-            pass
+        if not self._configure_tesseract(pytesseract):
+            return ""
 
         pages = list(pdf.pages)
         page_count = len(pages)
@@ -1374,6 +1408,8 @@ class FinalUnifiedParser:
             from PIL import ImageOps
         except Exception:
             return ""
+        if not self._configure_tesseract(pytesseract):
+            return ""
         page = pdf.pages[1]
         height = page.height
         width = page.width
@@ -1465,6 +1501,8 @@ class FinalUnifiedParser:
             from PIL import ImageOps
         except Exception:
             return "", ""
+        if not self._configure_tesseract(pytesseract):
+            return "", ""
         page = pdf.pages[1]
         h = page.height
         w = page.width
@@ -1554,6 +1592,8 @@ class FinalUnifiedParser:
             import pytesseract
             from PIL import ImageOps
         except Exception:
+            return "", ""
+        if not self._configure_tesseract(pytesseract):
             return "", ""
         page = pdf.pages[0]
         h = page.height
