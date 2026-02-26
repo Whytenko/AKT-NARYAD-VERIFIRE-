@@ -34,8 +34,10 @@ jobs:
         run: |
           $exe = "dist/AKTNaryadVerifier/AKTNaryadVerifier.exe"
           if (!(Test-Path $exe)) { throw "Missing executable: $exe" }
+          $global:LASTEXITCODE = 0
           & $exe --self-check
           if ($LASTEXITCODE -ne 0) { throw "Self-check failed with code $LASTEXITCODE" }
+          $global:LASTEXITCODE = 0
           & $exe --smoke-test
           if ($LASTEXITCODE -ne 0) { throw "Smoke test failed with code $LASTEXITCODE" }
 
