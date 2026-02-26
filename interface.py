@@ -18,6 +18,19 @@ from contextlib import redirect_stdout, redirect_stderr
 from urllib.parse import quote
 
 from src.utils.app_paths import ensure_runtime_layout, get_input_dir, get_runtime_root
+from src.utils.healthcheck import format_self_check_report, run_self_check
+from src.utils.smoke_test import format_smoke_report, run_smoke_test
+
+
+def _configure_console_streams():
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if callable(reconfigure):
+            try:
+                reconfigure(encoding="utf-8", errors="replace")
+            except Exception:
+                pass
+
 
 class API:
     def __init__(self):
@@ -25,6 +38,10 @@ class API:
         ensure_runtime_layout(copy_reference=True)
         self.runtime_root = get_runtime_root()
         self.input_folder = get_input_dir()
+        try:
+            self.self_check = run_self_check(write_logs=True)
+        except Exception:
+            self.self_check = None
     
     def run_main_parser(self, file_name=None):
         return self.run_parser("main_parser.py", file_name)
@@ -122,6 +139,12 @@ class API:
             if file_name:
                 output += f"Файл: {file_name}\n"
             output += f"Папка данных: {self.runtime_root}\n"
+            if self.self_check:
+                output += (
+                    f"Самопроверка: {str(self.self_check.get('status', 'unknown')).upper()} "
+                    f"(ошибок: {self.self_check.get('errors', 0)}, "
+                    f"предупреждений: {self.self_check.get('warnings', 0)})\n"
+                )
             output += "=" * 50 + "\n\n"
             output += stdout
             
@@ -1255,7 +1278,36 @@ html = html.replace("__SVG_CHECK__", SVG_CHECK)
 html = html.replace("__SVG_LOGO__", SVG_LOGO)
 html = html.replace("__SVG_SKV__", SVG_SKV)
 
+
+def _run_cli_mode(argv):
+    run_check = "--self-check" in argv
+    run_smoke = "--smoke-test" in argv
+    if not run_check and not run_smoke:
+        return None
+
+    _configure_console_streams()
+    exit_code = 0
+
+    if run_check:
+        check_result = run_self_check(write_logs=True)
+        print(format_self_check_report(check_result, with_hints=True))
+        if check_result.get("errors", 0):
+            exit_code = 2
+
+    if run_smoke:
+        smoke_result = run_smoke_test(max_files=2)
+        print(format_smoke_report(smoke_result))
+        if not smoke_result.get("ok"):
+            exit_code = 2
+
+    return exit_code
+
+
 if __name__ == "__main__":
+    cli_exit = _run_cli_mode(sys.argv[1:])
+    if cli_exit is not None:
+        raise SystemExit(cli_exit)
+
     api = API()
     
     # Создаем окно

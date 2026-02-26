@@ -32,3 +32,14 @@ certutil -hashfile AKTNaryadVerifier_installer_win_x64.exe SHA256
 ## Примечание по OCR
 В Windows-сборке OCR-движок Tesseract включается в установщик автоматически.  
 Дополнительная установка Tesseract на целевом ПК обычно не требуется.
+
+## Диагностика после установки
+Проверка окружения и базовый smoke-тест:
+```bat
+"%LOCALAPPDATA%\Programs\AKTNaryadVerifier\AKTNaryadVerifier.exe" --self-check
+"%LOCALAPPDATA%\Programs\AKTNaryadVerifier\AKTNaryadVerifier.exe" --smoke-test
+```
+
+Результаты самопроверки сохраняются в:
+- `%LOCALAPPDATA%\AktNaryadVerifier\logs\self_check_latest.txt`
+- `%LOCALAPPDATA%\AktNaryadVerifier\logs\self_check_latest.json`

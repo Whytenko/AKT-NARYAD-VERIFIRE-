@@ -29,6 +29,16 @@ jobs:
       - name: Build portable package
         run: python packaging/build_portable.py
 
+      - name: Self-check and smoke test (packaged EXE)
+        shell: pwsh
+        run: |
+          $exe = "dist/AKTNaryadVerifier/AKTNaryadVerifier.exe"
+          if (!(Test-Path $exe)) { throw "Missing executable: $exe" }
+          & $exe --self-check
+          if ($LASTEXITCODE -ne 0) { throw "Self-check failed with code $LASTEXITCODE" }
+          & $exe --smoke-test
+          if ($LASTEXITCODE -ne 0) { throw "Smoke test failed with code $LASTEXITCODE" }
+
       - name: Install Inno Setup
         run: choco install innosetup --no-progress -y
 
