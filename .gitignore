@@ -20,6 +20,8 @@ release/
 # Runtime user data and caches
 ml_cache/
 data/input/
+logs/
+output/
 
 # Local virtual envs
 .venv/

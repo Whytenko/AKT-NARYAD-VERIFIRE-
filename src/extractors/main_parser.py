@@ -330,7 +330,11 @@ class FinalUnifiedParser:
                 
                 filename = os.path.basename(pdf_path)
                 
-                # Создаем объект WellData
+                # Вычисляем vm_count один раз (используется дважды)
+                vm_count_val = self._parse_vm_count(all_text)
+                # OCR страницы 2 вызывается один раз
+                page2_start, page2_end = self._parse_page2_start_end(pdf)
+
                 well_data = WellData(
                     filename=filename,
                     field=self._parse_field(text),
@@ -342,13 +346,13 @@ class FinalUnifiedParser:
                     spo=self._parse_spo(all_text, pdf),
                     vm_task=self._parse_vm_task(text),
                     vm_price=self._parse_vm_price(all_text),
-                    vm_count=self._parse_vm_count(all_text),
+                    vm_count=vm_count_val,
                     vm_total=self._parse_vm_total(all_text),
-                    vm_table_count=self._parse_vm_table_count(pdf, self._parse_vm_count(all_text)),
+                    vm_table_count=self._parse_vm_table_count(pdf, vm_count_val),
                     volume_sum_page1=self._parse_volume_sum_page1(text),
                     qty_sum_page3=self._parse_qty_sum_page3(pdf),
-                    page2_start=self._parse_page2_start_end(pdf)[0],
-                    page2_end=self._parse_page2_start_end(pdf)[1],
+                    page2_start=page2_start,
+                    page2_end=page2_end,
                     start_date=self._parse_date(text, 'начало'),
                     end_date=self._parse_date(text, 'окончание')
                 )
@@ -974,11 +978,12 @@ class FinalUnifiedParser:
 
     def _parse_spo_from_text(self, text: str) -> str:
         # Normalize common OCR confusions between Latin/Cyrillic letters and 0/O.
+        # Normalize only Latin letter lookalikes to Cyrillic for keyword detection.
+        # Do NOT replace digit "0" — it would corrupt numeric values like "1000" → "1ООО".
         normalized = (
             text.replace("C", "С")
             .replace("P", "Р")
             .replace("O", "О")
-            .replace("0", "О")
             .replace("c", "с")
             .replace("p", "р")
             .replace("o", "о")
@@ -1394,10 +1399,6 @@ class FinalUnifiedParser:
             if "Стоимость ВМ" in line:
                 if i + 1 < len(lines):
                     return lines[i + 1]
-        if self.vm_task:
-            for line in lines:
-                if self.vm_task in line.replace(',', '.'):
-                    return line
         return ""
 
     def _parse_vm_table_count(self, pdf, expected_count: str = "") -> str:
@@ -1624,7 +1625,7 @@ class FinalUnifiedParser:
 
     def _extract_date_from_label(self, text: str, label: str) -> str:
         try:
-            match = re.search(label + r".*?(\\d{1,2}\\.\\d{1,2}\\.\\d{4})\\s+(\\d{1,2}:\\d{2})", text, re.DOTALL)
+            match = re.search(label + r".*?(\d{1,2}\.\d{1,2}\.\d{4})\s+(\d{1,2}:\d{2})", text, re.DOTALL)
             if match:
                 return f"{match.group(1)} {match.group(2)}"
         except Exception:

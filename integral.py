@@ -155,7 +155,7 @@ class IntegralCoefficientCalculator:
                         temp_str += '.' + match.group(2)
                     try:
                         return float(temp_str.replace(',', '.'))
-                    except:
+                    except Exception:
                         return None
         return None
     
@@ -172,7 +172,7 @@ class IntegralCoefficientCalculator:
                     angle_str = f"{match.group(1)}{match.group(2)}.{match.group(3)}"
                     try:
                         return float(angle_str)
-                    except:
+                    except Exception:
                         return None
                 
                 # Для формата "36,5"
@@ -181,7 +181,7 @@ class IntegralCoefficientCalculator:
                     angle_str = f"{match.group(1)}.{match.group(2)}"
                     try:
                         return float(angle_str)
-                    except:
+                    except Exception:
                         return None
                 
                 # Общий случай
@@ -189,7 +189,7 @@ class IntegralCoefficientCalculator:
                 if match:
                     try:
                         return float(match.group(1))
-                    except:
+                    except Exception:
                         return None
         
         return None
@@ -271,7 +271,7 @@ class IntegralCoefficientCalculator:
                                (is_povhovskoe and abs(coeff - 1.00) < 0.01):
                                 # Найден коэффициент в строке таблицы
                                 return coeff
-                        except:
+                        except Exception:
                             continue
         
         # 4. Если не нашли в таблице, используем статистический метод
@@ -287,9 +287,9 @@ class IntegralCoefficientCalculator:
                 num = float(f"{int_part}.{dec_part}")
                 if 1.0 <= num <= 1.5:
                     all_numbers.append(num)
-            except:
+            except Exception:
                 continue
-        
+
         # Поиск чисел с одним знаком после запятой
         matches_one_digit = re.findall(r'\b(\d)[,\.](\d)\b', text)
         for int_part, dec_part in matches_one_digit:
@@ -297,7 +297,7 @@ class IntegralCoefficientCalculator:
                 num = float(f"{int_part}.{dec_part}")
                 if 1.0 <= num <= 1.5:
                     all_numbers.append(num)
-            except:
+            except Exception:
                 continue
         
         if all_numbers:
@@ -415,7 +415,7 @@ class IntegralProcessor:
         return results
 
     def process_pdfs(self, pdf_paths: List[Path]) -> List[Dict]:
-        """РћР±СЂР°Р±Р°С‚С‹РІР°РµС‚ СѓРєР°Р·Р°РЅРЅС‹Рµ PDF С„Р°Р№Р»С‹"""
+        """Обрабатывает указанные PDF файлы"""
         results = []
         for pdf_file in pdf_paths:
             result = self.calculator.calculate_and_compare(str(pdf_file))

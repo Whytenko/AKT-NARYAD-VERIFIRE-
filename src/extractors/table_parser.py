@@ -1,4 +1,3 @@
-# table_parser_fixed_once_and_for_all.py
 import pandas as pd
 from pathlib import Path
 from datetime import datetime, timedelta
@@ -131,7 +130,7 @@ def get_table_data(dt, well_type):
                     if abs(cell_hour - closest_hour) < 0.1:
                         time_row = i
                         break
-                except:
+                except Exception:
                     continue
 
             if time_row is None:
@@ -154,7 +153,7 @@ def get_table_data(dt, well_type):
             try:
                 temp = float(str(value).replace(',', '.'))
                 return temp
-            except:
+            except Exception:
                 continue
 
         return None
@@ -168,7 +167,7 @@ def _parse_float(value):
         return None
     try:
         return float(str(value).replace(',', '.'))
-    except:
+    except Exception:
         return None
 
 def analyze_period(well_name, well_type, start_dt, end_dt, pdf_temp):

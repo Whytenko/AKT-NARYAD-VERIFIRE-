@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Dict, Iterable, Optional, Tuple
 import math
 import os
+import re
 
 import pandas as pd
 
@@ -604,7 +605,6 @@ def _extract_sp_table_from_text(text: str) -> Optional[float]:
         .replace("c", "с")
         .replace("p", "р")
     )
-    import re
     pattern = re.compile(r"\bСПО\s*[:=]\s*([0-9OО\s]+[.,][0-9OО]{1,2}|[0-9OО]+)", re.IGNORECASE)
     values = []
     for match in pattern.finditer(normalized):
