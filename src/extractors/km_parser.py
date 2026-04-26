@@ -88,6 +88,7 @@ def process_pdf(pdf_path: Path):
     print(f"Куст: {bush if bush else 'не найден'}")
     print(f"Переезд 1 гр.: {v1 if v1 is not None else 'не найдено'}")
     print(f"Переезд 3 гр.: {v3 if v3 is not None else 'не найдено'}")
+    # Справочник хранит расстояние в одну сторону; в акте фиксируется туда+обратно
     if r1 is not None:
         r1 = r1 * 2
     if r3 is not None:

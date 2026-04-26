@@ -4,7 +4,7 @@ import re
 import os
 import pdfplumber
 from pathlib import Path
-from typing import List
+from typing import ClassVar, List
 from dataclasses import dataclass, field
 from datetime import datetime
 import sys
@@ -55,6 +55,11 @@ class WellData:
     ml_spo_source: str = ""
     rate_check_status: str = ""
     rate_check_details: List[str] = field(default_factory=list)
+    # Вычисляется однажды в parse_all из уже открытого PDF — избегаем повторного открытия
+    integral_table_value: float | None = None
+
+    # Shared DataFrame кэш: один на весь класс, не пересоздаётся при каждом parse_all
+    _vm_price_df_cache: ClassVar["pd.DataFrame | None"] = None
     
     def __post_init__(self):
         """Вычисляем продолжительность после создания объекта"""
@@ -229,18 +234,20 @@ class WellData:
             return
 
         calculated = calculator.coefficient_table.get_integral_coefficient(temp, angle)
-        table_value = None
-        match = False
-        pdf_path = get_input_dir() / self.filename
-        if pdf_path.exists():
-            try:
-                result = calculator.calculate_and_compare(str(pdf_path))
-                table_value = result.get("from_table")
-                match = result.get("match", False)
-            except Exception:
-                table_value = None
-                match = False
 
+        # Используем значение, вычисленное в parse_all пока PDF был открыт.
+        # Повторно открываем файл только если значение не было вычислено тогда.
+        table_value = self.integral_table_value
+        if table_value is None:
+            pdf_path = get_input_dir() / self.filename
+            if pdf_path.exists():
+                try:
+                    result = calculator.calculate_and_compare(str(pdf_path))
+                    table_value = result.get("from_table")
+                except Exception:
+                    table_value = None
+
+        match = table_value is not None and abs(calculated - table_value) < 0.01
         status = "✅" if match else "❌"
         print(f"  Интегральный коэффициент: {status}")
         print(f"    Рассчитанный = {calculated:.2f}")
@@ -282,7 +289,11 @@ class WellData:
         excel_path = get_reference_dir() / "Стоимость ВМ задачи (не удалять).xlsx"
         if not excel_path.exists():
             return None, None
-        df = pd.read_excel(excel_path, sheet_name="Прейск_2019", header=None)
+        if WellData._vm_price_df_cache is None:
+            WellData._vm_price_df_cache = pd.read_excel(
+                excel_path, sheet_name="Прейск_2019", header=None
+            )
+        df = WellData._vm_price_df_cache
         best_row = None
         best_diff = None
         for i in range(2, df.shape[0]):
@@ -368,6 +379,16 @@ class FinalUnifiedParser:
                     if well_data.end_date == "не найдено" and end_ocr:
                         well_data.end_date = end_ocr
 
+                # Вычисляем интегральный коэффициент из таблицы пока PDF открыт —
+                # чтобы _print_integral_check не открывал файл повторно.
+                try:
+                    from integral import IntegralCoefficientCalculator as _IntCalc
+                    well_data.integral_table_value = (
+                        _IntCalc()._parse_integral_coefficient_from_table(text)
+                    )
+                except Exception:
+                    pass
+
                 try:
                     from src.extractors.ml_assist import apply_ml_fallback
                 except Exception:
@@ -381,7 +402,7 @@ class FinalUnifiedParser:
                         apply_ml_fallback(well_data, pdf_path=pdf_path)
                 except Exception:
                     pass
-                
+
                 return well_data
                 
         except Exception:
@@ -1247,9 +1268,9 @@ class FinalUnifiedParser:
                         return value
 
         if date_type == 'начало':
-            label_regex = r'(?:Hачало|Начало)\\s+работ.*?'
+            label_regex = r'(?:Hачало|Начало)\s+работ.*?'
         else:
-            label_regex = r'Окончание\\s+работ.*?'
+            label_regex = r'Окончание\s+работ.*?'
         match = re.search(label_regex + r'(\d{1,2}\.\d{1,2}\.\d{4})\s+(\d{1,2}:\d{2})', text, re.DOTALL)
         if match:
             date_part = match.group(1)

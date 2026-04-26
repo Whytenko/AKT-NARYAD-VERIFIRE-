@@ -260,12 +260,21 @@ class MLAssist:
         cls._instance = MLAssist(df)
         return cls._instance
 
-    def match(self, well_data) -> Optional[MLMatchResult]:
+    def match_exact(self, well_data) -> Optional[MLMatchResult]:
+        """Возвращает матч только по точному имени файла; knn не запускается."""
         file_base = Path(getattr(well_data, "filename", "")).stem
-        if file_base:
-            exact = self.df[self.df["file"] == file_base]
-            if not exact.empty:
-                return MLMatchResult(row=exact.iloc[0], confidence=1.0, method="exact-file")
+        if not file_base:
+            return None
+        exact = self.df[self.df["file"] == file_base]
+        if exact.empty:
+            return None
+        return MLMatchResult(row=exact.iloc[0], confidence=1.0, method="exact-file")
+
+    def match(self, well_data) -> Optional[MLMatchResult]:
+        """Exact-file match + knn fallback. Используй match_exact() если knn не нужен."""
+        result = self.match_exact(well_data)
+        if result is not None:
+            return result
 
         query = self._build_query(well_data)
         best_row = None
@@ -373,19 +382,17 @@ def apply_ml_fallback(well_data, min_confidence: float = 0.65, pdf_path: Optiona
     assist = MLAssist.load()
     if assist is None:
         return
-    match = assist.match(well_data)
+
+    # Только exact-file match применяется для коррекции данных.
+    # knn-поиск пропускается — его результат всё равно не использовался.
+    match = assist.match_exact(well_data)
     if match is None:
         _apply_ml_line_extraction(well_data, pdf_path)
         return
-    if match.method != "exact-file":
-        _apply_ml_line_extraction(well_data, pdf_path)
+    if match.confidence < 0.9:
         return
 
-    required_confidence = 0.9 if match.method == "exact-file" else min_confidence
-    if match.confidence < required_confidence:
-        return
-
-    force_override = match.method == "exact-file"
+    force_override = True  # exact-file всегда имеет confidence=1.0
 
     suggestions: Dict[str, str] = {}
     applied: Dict[str, Tuple[str, str]] = {}

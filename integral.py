@@ -195,158 +195,90 @@ class IntegralCoefficientCalculator:
         return None
     
     def _parse_integral_coefficient_from_table(self, text: str) -> Optional[float]:
-        """
-        Улучшенный парсер интегрального коэффициента из таблицы
-        """
-        # Поиск интегрального коэффициента в документе
-        
-        # 1. Определяем тип файла и целевой коэффициент
+        """Извлекает интегральный коэффициент из таблицы расценок в PDF."""
         lines = text.split('\n')
         is_vatieganskoe = 'ватьеган' in text.lower()
         is_povhovskoe = 'повхов' in text.lower()
-        
+
         if is_vatieganskoe:
-            # Файл: Ватьеганское → ищем 1,32
             target_coeff = 1.32
             target_patterns = [r'1[,\.]32', r'1\.32', r'1,32']
         elif is_povhovskoe:
-            # Файл: Повховское → ищем 1,00
             target_coeff = 1.00
             target_patterns = [r'1[,\.]00', r'1\.00', r'1,00', r'1\.0', r'1,0']
         else:
-            # Неизвестный файл
             return None
-        
-        # 2. Сначала попробуем найти в первых строках таблицы
-        # Поиск в начале таблицы
-        
-        # Ищем заголовок таблицы
+
+        # Шаг 1: ищем заголовок колонки «интегральный коэффициент», затем значение ниже
         table_start = -1
         for i, line in enumerate(lines):
             line_lower = line.lower()
             if ('интег' in line_lower and 'коэф' in line_lower) or \
                ('инт' in line_lower and 'коэф' in line_lower):
                 table_start = i
-                # Найден заголовок таблицы
                 break
-        
-        # Если нашли заголовок, ищем целевой коэффициент в следующих строках
+
         if table_start != -1:
             for i in range(table_start + 1, min(table_start + 15, len(lines))):
                 line = lines[i].strip()
-                
-                # Пропускаем пустые строки и заголовки
                 if not line or 'наименование' in line.lower():
                     continue
-                
-                # Ищем целевой коэффициент
                 for pattern in target_patterns:
-                    if re.search(pattern, line):
-                        # Проверяем, что это строка таблицы (содержит другие числа)
-                        if re.search(r'\d+,\d+', line):
-                            # Найден коэффициент после заголовка
-                            return target_coeff
-        
-        # 3. Если не нашли через заголовок, ищем по всей таблице
-        # Поиск по всей таблице
-        
-        for i, line in enumerate(lines):
+                    if re.search(pattern, line) and re.search(r'\d+,\d+', line):
+                        return target_coeff
+
+        # Шаг 2: ищем паттерн прямо в строках таблицы (без заголовка)
+        for line in lines:
             line_clean = line.strip()
-            
-            # Ищем строки, которые выглядят как строки таблицы
-            if (len(line_clean) > 30 and 
-                re.search(r'\d+,\d+.*\d+,\d+', line_clean) and
-                not any(exclude in line_clean.lower() for exclude in 
-                       ['наименование', 'стоимость', 'итог', 'всего'])):
-                
-                # Ищем целевой коэффициент в этой строке
+            if (len(line_clean) > 30
+                    and re.search(r'\d+,\d+.*\d+,\d+', line_clean)
+                    and not any(w in line_clean.lower()
+                                for w in ('наименование', 'стоимость', 'итог', 'всего'))):
                 for pattern in target_patterns:
-                    match = re.search(pattern, line_clean)
-                    if match:
-                        coeff_str = match.group().replace(',', '.')
+                    m = re.search(pattern, line_clean)
+                    if m:
                         try:
-                            coeff = float(coeff_str)
-                            # Проверяем, что это нужный коэффициент
+                            coeff = float(m.group().replace(',', '.'))
                             if (is_vatieganskoe and coeff == 1.32) or \
                                (is_povhovskoe and abs(coeff - 1.00) < 0.01):
-                                # Найден коэффициент в строке таблицы
                                 return coeff
                         except Exception:
                             continue
-        
-        # 4. Если не нашли в таблице, используем статистический метод
-        # Статистический поиск
-        
-        # Ищем все числа в диапазоне 1.0-1.5
-        all_numbers = []
-        
-        # Поиск чисел с двумя знаками после запятой
-        matches_two_digits = re.findall(r'\b(\d)[,\.](\d{2})\b', text)
-        for int_part, dec_part in matches_two_digits:
-            try:
-                num = float(f"{int_part}.{dec_part}")
-                if 1.0 <= num <= 1.5:
-                    all_numbers.append(num)
-            except Exception:
-                continue
 
-        # Поиск чисел с одним знаком после запятой
-        matches_one_digit = re.findall(r'\b(\d)[,\.](\d)\b', text)
-        for int_part, dec_part in matches_one_digit:
-            try:
-                num = float(f"{int_part}.{dec_part}")
-                if 1.0 <= num <= 1.5:
-                    all_numbers.append(num)
-            except Exception:
-                continue
-        
+        # Шаг 3: статистический метод — самое частое число в диапазоне 1.0–1.5
+        all_numbers: list[float] = []
+        for pat in (r'\b(\d)[,\.](\d{2})\b', r'\b(\d)[,\.](\d)\b'):
+            for int_part, dec_part in re.findall(pat, text):
+                try:
+                    num = float(f"{int_part}.{dec_part}")
+                    if 1.0 <= num <= 1.5:
+                        all_numbers.append(num)
+                except Exception:
+                    continue
+
         if all_numbers:
             counter = Counter(all_numbers)
-            
-            # Статистика найденных коэффициентов
-            
-            # Для Ватьеганского: ищем 1.32 среди найденных
             if is_vatieganskoe:
                 if 1.32 in counter:
-                    # Для Ватьеганского найден 1.32
                     return 1.32
-                else:
-                    # Если 1.32 не найден, но есть другие коэффициенты, берем не 1.00
-                    non_one_coeffs = [c for c in counter.keys() if abs(c - 1.00) > 0.01]
-                    if non_one_coeffs:
-                        # Берем самый частый не 1.00 коэффициент
-                        most_common_non_one = max(non_one_coeffs, key=lambda x: counter[x])
-                        # 1.32 не найден, берем самый частый
-                        return most_common_non_one
-            
-            # Для Повховского: ищем 1.00
+                non_one = [c for c in counter if abs(c - 1.00) > 0.01]
+                if non_one:
+                    return max(non_one, key=lambda x: counter[x])
             if is_povhovskoe:
-                # Ищем 1.00 или близкие значения
-                for coeff in counter.keys():
+                for coeff in counter:
                     if abs(coeff - 1.00) < 0.01:
-                        # Для Повховского найден коэффициент
                         return coeff
-            
-            # Если не нашли по специфическим правилам, берем самый частый
-            most_common = counter.most_common(1)[0]
-            # Выбран самый частый коэффициент
-            return most_common[0]
-        
-        # 5. Fallback: возвращаем ожидаемый коэффициент
-        # Коэффициент не найден, используем ожидаемый
-        return target_coeff
+            return counter.most_common(1)[0][0]
+
+        # Коэффициент не найден в документе — возвращаем None,
+        # чтобы проверка показала ❌ вместо ложного ✅
+        return None
     
     def calculate_and_compare(self, pdf_path: str) -> Dict:
-        """
-        Рассчитывает интегральный коэффициент и сравнивает с табличным значением
-        """
-        # Обработка файла
-        
-        # Парсим данные из PDF
+        """Рассчитывает интегральный коэффициент и сравнивает с табличным значением."""
         well_data = self.parse_well_data(pdf_path)
-        
+
         if well_data['temperature'] is None or well_data['angle'] is None:
-            # Не удалось распарсить температуру или угол
             return {
                 'filename': well_data['filename'],
                 'temperature': well_data['temperature'],
@@ -356,29 +288,14 @@ class IntegralCoefficientCalculator:
                 'match': False,
                 'error': 'Не удалось распарсить температуру или угол'
             }
-        
-        # Температура и угол наклона распознаны
-        
-        # Рассчитываем интегральный коэффициент
+
         calculated_coeff = self.coefficient_table.get_integral_coefficient(
             temperature=well_data['temperature'],
             angle=well_data['angle']
         )
-        
-        # Рассчитанный коэффициент
-        
-        # Сравниваем с табличным значением
         table_coeff = well_data['integral_from_table']
-        match = False
-        
-        if table_coeff is not None:
-            # Коэффициент из таблицы найден
-            # Сравниваем с допуском 0.01
-            match = abs(calculated_coeff - table_coeff) < 0.01
-        else:
-            # Коэффициент из таблицы не найден
-            pass
-        
+        match = table_coeff is not None and abs(calculated_coeff - table_coeff) < 0.01
+
         return {
             'filename': well_data['filename'],
             'temperature': well_data['temperature'],
